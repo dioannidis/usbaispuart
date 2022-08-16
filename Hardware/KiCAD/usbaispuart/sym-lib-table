@@ -1,0 +1,6 @@
+(sym_lib_table
+  (lib (name 2N2222A)(type Legacy)(uri ${KIPRJMOD}../../../LIB_SYMBOLS/2N2222A.lib)(options "")(descr ""))
+  (lib (name MIC2172)(type Legacy)(uri ${KIPRJMOD}../../../LIB_SYMBOLS/MIC2172.lib)(options "")(descr ""))
+  (lib (name AVR-ISP-UART-10)(type Legacy)(uri ${KIPRJMOD}../../../LIB_SYMBOLS/AVR-ISP-UART-10.lib)(options "")(descr ""))
+  (lib (name SN74AHC367)(type Legacy)(uri ${KIPRJMOD}../../../LIB_SYMBOLS/SN74AHC367.lib)(options "")(descr ""))
+)
