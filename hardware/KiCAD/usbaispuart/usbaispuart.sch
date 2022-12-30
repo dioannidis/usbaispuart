@@ -1337,17 +1337,6 @@ F 3 "~" H 8560 920 50  0001 C CNN
 	1    8560 920 
 	0    -1   -1   0   
 $EndComp
-$Comp
-L Diode:1N5819 D4
-U 1 1 6251013B
-P 7820 920
-F 0 "D4" H 7840 1030 50  0000 C CNN
-F 1 "1N5819" H 7750 810 50  0000 C CNN
-F 2 "Diode_THT:D_DO-41_SOD81_P2.54mm_Vertical_KathodeUp" H 7820 745 50  0001 C CNN
-F 3 "http://www.vishay.com/docs/88525/1n5817.pdf" H 7820 920 50  0001 C CNN
-	1    7820 920 
-	-1   0    0    1   
-$EndComp
 Wire Wire Line
 	7970 920  8410 920 
 Text Label 5460 1410 0    50   ~ 0
@@ -1484,4 +1473,15 @@ Wire Wire Line
 	10370 920  10810 920 
 Text Label 10810 920  2    50   ~ 0
 INT_EXT_5V_3.3V
+$Comp
+L Diode:1N5817 D4
+U 1 1 63B04224
+P 7820 920
+F 0 "D4" H 7820 703 50  0000 C CNN
+F 1 "1N5817" H 7820 794 50  0000 C CNN
+F 2 "Diode_THT:D_DO-41_SOD81_P2.54mm_Vertical_KathodeUp" H 7820 745 50  0001 C CNN
+F 3 "http://www.vishay.com/docs/88525/1n5817.pdf" H 7820 920 50  0001 C CNN
+	1    7820 920 
+	-1   0    0    1   
+$EndComp
 $EndSCHEMATC
