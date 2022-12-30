@@ -1,6 +1,6 @@
 # USBaispUART
 
-( version 4 )
+( version 5 )
 
    A single side, through hole, USBa(i)sp clone, designed in Kicad 5.
 
