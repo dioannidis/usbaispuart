@@ -5,8 +5,8 @@ $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 1
 Title "USBaispUART ( CERN-OHL-S-2.0 licenced )"
-Date "2022-08-16"
-Rev "4"
+Date "2022-12-30"
+Rev "5"
 Comp "www.nephelae.eu"
 Comment1 "USBaisp with UART"
 Comment2 ""
