@@ -5,8 +5,8 @@ $Descr A4 11693 8268
 encoding utf-8
 Sheet 1 1
 Title "USBaispUART ( CERN-OHL-S-2.0 licenced )"
-Date "2022-12-30"
-Rev "5"
+Date "2023-01-04"
+Rev "5a"
 Comp "www.nephelae.eu"
 Comment1 "USBaisp with UART"
 Comment2 ""
@@ -1142,17 +1142,6 @@ F 3 "~" H 5410 6600 50  0001 C CNN
 	1    5410 6600
 	1    0    0    -1  
 $EndComp
-$Comp
-L Device:C C6
-U 1 1 60EF15DE
-P 6365 6600
-F 0 "C6" H 6165 6600 50  0000 L CNN
-F 1 "2.2 μF / 16V" H 6395 6465 50  0000 L CNN
-F 2 "Capacitor_THT:C_Disc_D5.1mm_W3.2mm_P5.00mm" H 6403 6450 50  0001 C CNN
-F 3 "~" H 6365 6600 50  0001 C CNN
-	1    6365 6600
-	1    0    0    -1  
-$EndComp
 Connection ~ 1180 5860
 Wire Wire Line
 	1180 5860 1370 5860
@@ -1434,7 +1423,7 @@ Connection ~ 8570 3430
 Wire Wire Line
 	8570 3430 8930 3430
 Text Notes 5230 4670 0    50   ~ 0
-Vout = 1.25 * ( 1 + R2/R1)\n( consider voltage drop\n  of PTC F2 and Diode D4 )\n\nR2 = R16\nJ6 Open: R1 = R14\nJ6 Close: R1 = R14, R15 in parallel
+Vout = 1.25 * ( 1 + RLow/RHigh)\n( consider voltage drop\n  of PTC F2 and Diode D4 )\n\nRLow = R16\nJ6 Open: RHigh = R14\nJ6 Close: RHigh = R14, R15 in parallel
 Text Notes 3880 4535 0    50   ~ 0
 Tantalum Low ESR
 $Comp
@@ -1483,5 +1472,16 @@ F 2 "Diode_THT:D_DO-41_SOD81_P2.54mm_Vertical_KathodeUp" H 7820 745 50  0001 C C
 F 3 "http://www.vishay.com/docs/88525/1n5817.pdf" H 7820 920 50  0001 C CNN
 	1    7820 920 
 	-1   0    0    1   
+$EndComp
+$Comp
+L Device:CP C6
+U 1 1 63B6D513
+P 6365 6600
+F 0 "C6" H 6483 6646 50  0000 L CNN
+F 1 "1 μF / 16V" H 6483 6555 50  0000 L CNN
+F 2 "Capacitor_THT:CP_Radial_D4.0mm_P2.00mm" H 6403 6450 50  0001 C CNN
+F 3 "~" H 6365 6600 50  0001 C CNN
+	1    6365 6600
+	1    0    0    -1  
 $EndComp
 $EndSCHEMATC
