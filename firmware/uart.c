@@ -14,38 +14,31 @@
 #include <util/atomic.h>
 
 #include "usbdrv.h"
+#include "usbasp.h"
 #include "uart.h"
 #include "cbuf.h"
+
+volatile uint8_t dataByte;
 
 void __vector_usart_rxc_wrapped() __attribute__ ((signal));
 void __vector_usart_rxc_wrapped(){
     if (!CBUF_IsFull(rx_Q)){
-      *CBUF_GetPushEntryPtr(rx_Q) = EEDR;
+      *CBUF_GetPushEntryPtr(rx_Q) = dataByte;
       CBUF_AdvancePushIdx(rx_Q);
     }
 }
 
-/*
-    As we don't use EEPROM we can use EEDR to store the
-    UDR value. No need to disable RXCIE interrupt. 
-*/
-
 #if (defined __AVR_ATmega8__) || (defined __AVR_ATmega8A__)
 ISR(USART_RXC_vect, ISR_NAKED){
-  __asm__ volatile(
-    "in      __tmp_reg__, %0  \n"
-    "   out     %1, __tmp_reg__  \n"
-    "   rjmp __vector_usart_rxc_wrapped \n"           
-    ::  "i"(_SFR_IO_ADDR(USBASPUART_UDR)),"i"(_SFR_IO_ADDR(EEDR))
 #elif (defined __AVR_ATmega88__) || (defined __AVR_ATmega88PA__)
 ISR(USART_RX_vect, ISR_NAKED){
-  __asm__ volatile(
-    "lds     __tmp_reg__, %0  \n"
-    "   sts     %1, __tmp_reg__  \n"
-    "   rjmp __vector_usart_rxc_wrapped \n"           
-    ::  "m"(USBASPUART_UDR),"m"(EEDR)
 #endif    
-  );
+    __asm__ volatile(
+        "lds     __tmp_reg__, %0  \n"
+        "   sts     %1, __tmp_reg__  \n"
+        "   rjmp __vector_usart_rxc_wrapped \n"
+        ::  "m"(USBASPUART_UDR),"m"(dataByte)
+    );
 }
 
 void __vector_usart_udre_wrapped() __attribute__ ((signal));
@@ -53,16 +46,14 @@ void __vector_usart_udre_wrapped(){
     
     if(!CBUF_IsEmpty(tx_Q)){
         USBASPUART_UDR=*CBUF_GetPopEntryPtr(tx_Q);
-        CBUF_AdvancePopIdx(tx_Q);        
+        CBUF_AdvancePopIdx(tx_Q);
     } else {
         USBASPUART_UCSRB &= ~(1<<USBASPUART_UDRIE);
     }
-    
+
 }
 
-// This cannot be ISR_NOBLOCK, since UDRE is level sensitive.
-// Therefore, we clear the interrupt manually and then jump
-// into the real handler. USB interrupt delay is about 3 clocks.
+
 ISR(USART_UDRE_vect, ISR_NAKED){
   __asm__ volatile(
     "rjmp __vector_usart_udre_wrapped    \n"
@@ -70,31 +61,30 @@ ISR(USART_UDRE_vect, ISR_NAKED){
   ); 
 }
 
-void uart_disable(){
+uchar uart_disable(){
     
     /* disable the UART buffer IC */
     UARTBufferOff();
 
     /* Switch Rx Pullup off */
     PORTD &= ~(1 << PIND0);
-    
+
     USBASPUART_UCSRB = 0;
     USBASPUART_UCSRB &= ~(1<<USBASPUART_UDRIE);
 
     CBUF_Init(tx_Q);
     CBUF_Init(rx_Q);
 
-
     if(usbAllRequestsAreDisabled()){
         usbEnableAllRequests();
     }
 
+    return UART_STATE_DISABLED;
+
 }
 
-void uart_config(uint16_t baud, uint8_t par, uint8_t stop, uint8_t bytes){
-
-    uart_disable();
-
+void uart_config_int(uint16_t baud, uint8_t par, uint8_t stop, uint8_t bytes){
+    
     CBUF_Init(tx_Q);
     CBUF_Init(rx_Q);
 
@@ -128,11 +118,29 @@ void uart_config(uint16_t baud, uint8_t par, uint8_t stop, uint8_t bytes){
 
     // Turn on RX/TX and RX interrupt.
     USBASPUART_UCSRB=(1<<USBASPUART_RXCIE)|(1<<USBASPUART_RXEN)|(1<<USBASPUART_TXEN);
-
+    
     /* Enable Rx Pin Pullup */
     PORTD |= (1 << PIND0);
 
     /* enable the UART buffer IC */
     UARTBufferOn();
+}
 
+uchar uart_config(uchar *cfgData){
+    
+    if((cfgData[1]<<8)|cfgData[0]){
+        
+        uart_config_int(
+            (cfgData[1]<<8)|cfgData[0],
+            cfgData[2] & USBASP_UART_PARITY_MASK,
+            cfgData[2] & USBASP_UART_STOP_MASK,
+            cfgData[2] & USBASP_UART_BYTES_MASK        
+        );
+        
+      return UART_STATE_ENABLED;
+      
+    }
+    
+    return uart_disable();  
+    
 }

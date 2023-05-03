@@ -3,6 +3,7 @@
  * 2018 WCID support by Marius Greuel ( https://github.com/mariusgreuel )
  * 2022 Composite WCID and HID by Dimitrios Chr. Ioannidis ( d.ioannidis@nephelae.eu )
  * 2022 Move to Microsoft OS 2.0 Descriptors by Dimitrios Chr. Ioannidis ( d.ioannidis@nephelae.eu )
+ * 2023 Store Serial Number to EEPROM by Dimitrios Chr. Ioannidis ( d.ioannidis@nephelae.eu )
  *
  * Tabsize: 4
  * License: GNU GPL v2 (see Readme.txt)
@@ -42,6 +43,8 @@
 #define MS_OS_20_REG_PROPERTY_REG_DWORD_BIG_INDIAN     0x05, 0x00
 #define MS_OS_20_REG_PROPERTY_REG_LINK                 0x06, 0x00
 #define MS_OS_20_REG_PROPERTY_REG_MULTI_SZ             0x07, 0x00
+
+const int EEMEM usbDescriptorStringSerialNumber[] = {USB_STRING_DESCRIPTOR_HEADER(4), '0', '0', '0', '0'};
 
 /* USB device descriptor */
 PROGMEM const char usbDescriptorDevice[] = {
@@ -148,7 +151,7 @@ PROGMEM const char usbDescriptorConfiguration[] = {
     (char)0x82,                                             /* IN endpoint number 1 */
     0x03,                                                   /* attrib: Interrupt endpoint */
     0x08, 0x00,                                             /* maximum packet size */
-    USB_CFG_INTR_POLL_INTERVAL * 2, /* in ms */
+    USB_CFG_INTR_POLL_INTERVAL, /* in ms */
 
 };
 
@@ -158,16 +161,8 @@ PROGMEM const char BOS_DESCRIPTOR[] = {
     /* BOS Descriptor Header */
     0x05,                                                  /* Size of descriptor */
     USBDESCR_BOS,                                          /* Descriptor type */
-    0x35, 0x00,                                            /* Length of this descriptor and all of its sub descriptors */
-    0x02,                                                  /* The number of separate device capability descriptors in the BOS */
-
-    /* Device Capability Descriptor - Container_ID */
-    0x14,                                                  /* Size of descriptor */
-    USBDESCR_DEVICE_CAPABILITY_TYPE,                       /* Descriptor Type */
-    USBDESCR_DEVICE_CAPABILITY_CONTAINER_ID,               /* Device Capability Type */
-    0x00,                                                  /* Reserved */
-    0x5D, 0xF4, 0xEF, 0xC9, 0x20, 0xD2, 0x31, 0x4A,        /* UUID */
-    0x98, 0x50, 0x60, 0x75, 0xC5, 0x6E, 0x49, 0x3A,        /* {C9EFF45D-D220-4A31-9850-6075C56E493A} */
+    0x21, 0x00,                                            /* Length of this descriptor and all of its sub descriptors */
+    0x01,                                                  /* The number of separate device capability descriptors in the BOS */
 
     /* Device Capability Descriptor - Platform */
     0x1C,                                                  /* Length */

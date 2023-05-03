@@ -238,7 +238,7 @@ section at the end of this file).
  * with libusb: 0x16c0/0x5dc.  Use this VID/PID pair ONLY if you understand
  * the implications!
  */
-#define USB_CFG_DEVICE_VERSION  0x10, 0x01
+#define USB_CFG_DEVICE_VERSION  0x11, 0x01
 /* Version number of the device: Minor number first, then major number.
  */
 #define	USB_CFG_VENDOR_NAME     'w', 'w', 'w', '.', 'f', 'i', 's', 'c', 'h', 'l', '.', 'd', 'e'
@@ -257,8 +257,8 @@ section at the end of this file).
  * the macros. See the file USB-IDs-for-free.txt before you assign a name if
  * you use a shared VID/PID.
  */
-#define USB_CFG_SERIAL_NUMBER   '0', '0', '0', '1'
-#define USB_CFG_SERIAL_NUMBER_LEN   4
+/* #define USB_CFG_SERIAL_NUMBER   '0', '0', '0', '1' */
+/* #define USB_CFG_SERIAL_NUMBER_LEN   4 */
 /* Same as above for the serial number. If you don't want a serial number,
  * undefine the macros.
  * It may be useful to provide the serial number through other means than at
@@ -295,22 +295,29 @@ section at the end of this file).
 /* ------------------- Fine Control over USB Descriptors ------------------- */
 /* If you don't want to use the driver's default USB descriptors, you can
  * provide our own. These can be provided as (1) fixed length static data in
- * flash memory, (2) fixed length static data in RAM or (3) dynamically at
- * runtime in the function usbFunctionDescriptor(). See usbdrv.h for more
- * information about this function.
+ * flash memory, (2) fixed length static data in RAM, (3) dynamically at
+ * runtime in the function usbFunctionDescriptor(), or (4) fixed length static
+ * data in EEPROM. See usbdrv.h for more information about this function.
  * Descriptor handling is configured through the descriptor's properties. If
  * no properties are defined or if they are 0, the default descriptor is used.
  * Possible properties are:
  *   + USB_PROP_IS_DYNAMIC: The data for the descriptor should be fetched
  *     at runtime via usbFunctionDescriptor(). If the usbMsgPtr mechanism is
  *     used, the data is in FLASH by default. Add property USB_PROP_IS_RAM if
- *     you want RAM pointers.
+ *     you want RAM pointers or add property USB_PROP_IS_EEPROM if
+ *     the data is in EEPROM.
  *   + USB_PROP_IS_RAM: The data returned by usbFunctionDescriptor() or found
  *     in static memory is in RAM, not in flash memory.
+ *   + USB_PROP_IS_EEPROM: The data returned by usbFunctionDescriptor() or found
+ *     in static memory is in EEPROM, not in flash memory or in RAM.
  *   + USB_PROP_LENGTH(len): If the data is in static memory (RAM or flash),
  *     the driver must know the descriptor's length. The descriptor itself is
  *     found at the address of a well known identifier (see below).
- * List of static descriptor names (must be declared PROGMEM if in flash):
+ *   + USB_PROP_EEPROM_STRING_LENGTH(len): If the data is in EEPROM,
+ *     the driver must know the descriptor's length. The descriptor itself is
+ *     found at the address of a well known identifier (see below).
+ * List of static descriptor names (must be declared PROGMEM if in flash 
+ *   or EEMEM if in EEPROM):
  *   char usbDescriptorDevice[];
  *   char usbDescriptorConfiguration[];
  *   char usbDescriptorHidReport[];
@@ -350,7 +357,7 @@ section at the end of this file).
 #define USB_CFG_DESCR_PROPS_STRING_0                0
 #define USB_CFG_DESCR_PROPS_STRING_VENDOR           0 
 #define USB_CFG_DESCR_PROPS_STRING_PRODUCT          0
-#define USB_CFG_DESCR_PROPS_STRING_SERIAL_NUMBER    0
+#define USB_CFG_DESCR_PROPS_STRING_SERIAL_NUMBER    (USB_PROP_IS_EEPROM | USB_PROP_EEPROM_STRING_LENGTH(4))
 #define USB_CFG_DESCR_PROPS_HID                     0
 #define USB_CFG_DESCR_PROPS_HID_REPORT              0
 #define USB_CFG_DESCR_PROPS_UNKNOWN                 USB_PROP_IS_DYNAMIC

@@ -4,19 +4,20 @@
  * Thomas Fischl <tfischl@gmx.de>
  * 2020 fixes and tweaks by Ralph Doncaster (Nerd Ralph)
  * 2021 WCID support by Dimitrios Chr. Ioannidis ( d.ioannidis@nephelae.eu )
-  *     ( based on Marius Greuel's https://github.com/mariusgreuel/USBasp )
+ *      ( based on Marius Greuel's https://github.com/mariusgreuel/USBasp )
  * 2022 Composite WCID and HID by Dimitrios Chr. Ioannidis ( d.ioannidis@nephelae.eu )
+ * 2023 Serial Number write via HID and 
+ *      descriptors stored in EEPROM by Dimitrios Chr. Ioannidis ( d.ioannidis@nephelae.eu )
  *
  * License........: GNU GPL v2 (see Readme.txt)
  * Target.........: ATMega8 at 12 MHz
  * Creation Date..: 2005-02-20
- * Last change....: 2020-11-26
+ * Last change....: 2023-03-22
  *
  */
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-//#include <avr/pgmspace.h>
 #include <avr/wdt.h>
 
 #include "oddebug.h"
@@ -28,26 +29,26 @@
 #include "clock.h"
 #include "tpi.h"
 #include "tpi_defs.h"
+#include "serialnumber.h"
+
+#if F_CPU == 12000000L
+    #define CAP_CLOCK USBASP_CAP_12MHZ_CLOCK
+#elif F_CPU == 16000000L
+    /* ATmega8 max speed */
+    #define CAP_CLOCK USBASP_CAP_16MHZ_CLOCK
+#elif F_CPU == 18000000L
+    #define CAP_CLOCK USBASP_CAP_18MHZ_CLOCK
+#elif F_CPU == 20000000L
+    #define CAP_CLOCK USBASP_CAP_20MHZ_CLOCK
+#endif
 
 static uchar featureReport[8] = {
     0,                                             /* Prescaler Low byte */
     0,                                             /* Prescaler High byte */
     0,                                             /* Bitmask Parity, StopBit and DataBit */
     0,                                             /* Reserved */
-#if F_CPU == 12000000L
-    USBASP_CAP_0_TPI |                             /* TPI works only at 12MHz currently */
-#endif
-    USBASP_CAP_HIDUART,                            /* Device Capabilities */
-#if F_CPU == 12000000L
-    USBASP_CAP_12MHZ_CLOCK,                        /* Device Crystal      */
-#elif F_CPU == 16000000L                           
-    /* ATmega8 max speed */
-    USBASP_CAP_16MHZ_CLOCK,                        /* Device Crystal      */
-#elif F_CPU == 18000000L
-    USBASP_CAP_18MHZ_CLOCK,                        /* Device Crystal      */
-#elif F_CPU == 20000000L
-    USBASP_CAP_20MHZ_CLOCK,                        /* Device Crystal      */
-#endif
+    USBASP_CAP_0_TPI | USBASP_CAP_HIDUART | USBASP_CAP_SNHIDUPDATE,         /* Device Capabilities */
+    CAP_CLOCK,                                     /* Device Crystal      */
     0,                                             /* Reserved            */
     0                                              /* Reserved            */
   };
@@ -55,6 +56,8 @@ static uchar featureReport[8] = {
 static uchar replyBuffer[8];
 static uchar interruptBuffer[8];
 static uchar monitorBuffer[8];
+
+static uchar uart_state = UART_STATE_DISABLED;
 
 static uchar prog_state = PROG_STATE_IDLE;
 uchar prog_sck = USBASP_ISP_SCK_AUTO;
@@ -107,7 +110,8 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
         if((data[0] & USBRQ_RCPT_MASK) == USBRQ_RCPT_DEVICE) {
 
             if (data[1] == USBASP_FUNC_CONNECT) {
-                uart_disable(); // make it not interfere.
+
+                uart_state = uart_disable(); // make it not interfere.
 
                 /* set SCK speed */
                 ispSetSCKOption(prog_sck);
@@ -121,6 +125,12 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
             } else if (data[1] == USBASP_FUNC_DISCONNECT) {
                 ispDisconnect();
                 ledRedOff();
+  
+                /*  If the prescaler "baud" is non zero then it means that
+                UART was open and it was interrupted by an ISP connect command.
+                Re enable the UART */
+
+                uart_state = uart_config(featureReport);
 
             } else if (data[1] == USBASP_FUNC_TRANSMIT) {
                 replyBuffer[0] = ispTransmit(data[2]);
@@ -128,22 +138,9 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                 replyBuffer[2] = ispTransmit(data[4]);
                 replyBuffer[3] = ispTransmit(data[5]);
 
-                /*  If the prescaler "baud" is non zero then it means that
-                UART was open and it was interrupted by an ISP connect command.
-                Re enable the UART */
-                if ((featureReport[1]<<8)|featureReport[0]) {
-                    uart_config(
-                        (featureReport[1]<<8)|featureReport[0],
-                        featureReport[2] & USBASP_UART_PARITY_MASK,
-                        featureReport[2] & USBASP_UART_STOP_MASK,
-                        featureReport[2] & USBASP_UART_BYTES_MASK
-                    );
-                }
-
                 len = 4;
 
             } else if (data[1] == USBASP_FUNC_READFLASH) {
-
                 if (!prog_address_newmode)
                     prog_address = (data[3] << 8) | data[2];
 
@@ -152,7 +149,6 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                 len = USB_NO_MSG; /* multiple in */
 
             } else if (data[1] == USBASP_FUNC_READEEPROM) {
-
                 if (!prog_address_newmode)
                     prog_address = (data[3] << 8) | data[2];
 
@@ -165,7 +161,6 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                 len = 1;
 
             } else if (data[1] == USBASP_FUNC_WRITEFLASH) {
-                
                 if (!prog_address_newmode)
                     prog_address = (data[3] << 8) | data[2];
 
@@ -180,7 +175,6 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                 len = USB_NO_MSG; /* multiple out */
 
             } else if (data[1] == USBASP_FUNC_WRITEEEPROM) {
-
                 if (!prog_address_newmode)
                     prog_address = (data[3] << 8) | data[2];
 
@@ -191,14 +185,12 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                 len = USB_NO_MSG; /* multiple out */
 
             } else if (data[1] == USBASP_FUNC_SETLONGADDRESS) {
-
                 /* set new mode of address delivering (ignore address delivered in commands) */
                 prog_address_newmode = 1;
                 /* set new address */
                 prog_address = *((unsigned long*) &data[2]);
 
             } else if (data[1] == USBASP_FUNC_SETISPSCK) {
-
                 /* set sck option */
                 prog_sck = data[2];
                 replyBuffer[0] = 0;
@@ -221,7 +213,6 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                 tpi_init();
 
             } else if (data[1] == USBASP_FUNC_TPI_DISCONNECT) {
-
                 tpi_send_byte(TPI_OP_SSTCS(TPISR));
                 tpi_send_byte(0);
 
@@ -270,10 +261,12 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                 we replied earlier in the BOS Descriptor request. See usbFunctionDescriptor. */
             } else if((data[1] == VENDOR_CODE) &&
                     (data[4] == MS_OS_2_0_DESCRIPTOR_INDEX)) {
+        
                         usbMsgFlags = USB_FLG_MSGPTR_IS_ROM;
                         usbMsgPtr = (usbMsgPtr_t)&MS_2_0_OS_DESCRIPTOR_SET;
                         len = sizeof(MS_2_0_OS_DESCRIPTOR_SET);
                         goto dontAssMsgPtr;
+
                     }
             
         }
@@ -303,11 +296,11 @@ usbMsgLen_t usbFunctionSetup(uchar data[8]) {
                             }
                             break;
                         default:
-                        break;
+                            break;
                     }
                     break;
                 default:
-                break;
+                    break;
             }
         }
     }
@@ -433,33 +426,39 @@ uchar usbFunctionWrite(uchar *data, uchar len) {
     if(prog_state == PROG_STATE_SET_REPORT) 
     {
 
+        switch (data[3]) {
+            case 0: {                                             
+
     /*  The first 2 bytes are the uart prescaler ( low byte first then high byte second ) 
         UART settings. The 3rd byte is a bitmask for parity, stop bit and data bit. 
         The 4th byte is reserved for future.
             
         The last 4 bytes are the USBasp capabilities which are readonly. */
-            
-        featureReport[0] = data[0];
-        featureReport[1] = data[1];
-        featureReport[2] = data[2];
 
-        uart_disable();
-        
-    /*  To enable the UARTT the baud needs to be non zero. 
+                    featureReport[0] = data[0];
+                    featureReport[1] = data[1];
+                    featureReport[2] = data[2];
+
+    /*  To enable the UART the baud needs to be non zero. 
         Meaning that to disable the UART communication send a set feature report 
         with the prescaler ( first 2 bytes ) zeroed. */
         
-        if ((featureReport[1]<<8)|featureReport[0]) {
-            uart_config(
-                (featureReport[1]<<8)|featureReport[0], 
-                featureReport[2] & USBASP_UART_PARITY_MASK, 
-                featureReport[2] & USBASP_UART_STOP_MASK, 
-                featureReport[2] & USBASP_UART_BYTES_MASK
-            );
+                    uart_state = uart_config(featureReport);
+
+                }
+                break;
+            case 1: {
+                
+                    serialNumberWrite(data);
+                
+                }
+                break;
+            default:
+                break;
         }
 
         prog_state = PROG_STATE_IDLE;
-        
+
         retVal = 1;
     }
 
@@ -480,7 +479,7 @@ uchar usbFunctionWrite(uchar *data, uchar len) {
  *  
  *  0x00,0x34,0x00,0x66,0x32,0x36,0x00,0x04 -> Actual serial bytes 4 : 0x00,0x34,0x00,0x66
  *  
- * 0x00,0xC3,0x34,0x55,0x32,0xF3,0x00,0xAB -> Actual serial bytes 8 ( 8th byte > 7 ) : 0x00,0xC3,0x34,0x55,0x32,0xF3,0x00,0xAB
+ *  0x00,0xC3,0x34,0x55,0x32,0xF3,0x00,0xAB -> Actual serial bytes 8 ( 8th byte > 7 ) : 0x00,0xC3,0x34,0x55,0x32,0xF3,0x00,0xAB
  *
  */
 
@@ -497,7 +496,7 @@ void usbFunctionWriteOut(uchar *data, uchar len){
         report else the 8th byte holds the serial data count. This
         way the receiver can distinguish the meaning of the 8th byte
         if it is serial data or actually the serial data count.                
-
+        
         With this algorithm we can reliably send 700 - 800 bytes per second
         ( the probability to have 100 7 value at the 8th place of report
         is very low. So the 700 bytes/s is a very rare worst case scenario ), 
@@ -538,16 +537,16 @@ void usbFunctionWriteOut(uchar *data, uchar len){
 /* Device to host. Endpoint 1 Input */
 void HID_EP_1_IN(){
 
-    /* As we don't use EEPROM use the EEAR register as variable */
-    EEAR = 0;
-
+    uint8_t count = 0;
+    
     /*  We fill the first 7 bytes of the report from
         the receive buffer if they are exist. */
-    while((!(CBUF_IsEmpty(rx_Q))) && (EEAR != 7)){
-        interruptBuffer[EEAR++] = CBUF_Get(rx_Q, 0);
+    while((!(CBUF_IsEmpty(rx_Q))) && (count != 7)){
+        interruptBuffer[count++] = CBUF_Get(rx_Q, 0);
         CBUF_AdvancePopIdx(rx_Q);
     }
-    interruptBuffer[7] = EEAR;
+    
+    interruptBuffer[7] = count;
 
     /*  The 8th byte ( interruptBuffer[7] ), holds the serial bytes count or
         is actual serial data, depending on the folowing condition:
@@ -557,7 +556,7 @@ void HID_EP_1_IN(){
         report else the 8th byte holds the serial data count. This
         way the receiver can distinguish the meaning of the 8th byte
         if it is serial data or actually the serial data count.                
-
+        
         With this algorithm we can reliably send 700 - 800 bytes per second
         ( the probability to have 100 7 value at the 8th place of report
         is very low. So the 700 bytes/s is a very rare worst case scenario ), 
@@ -567,11 +566,11 @@ void HID_EP_1_IN(){
         send to 875 - 1000 bytes/s ( again below 970 bytes/s is a rare case )
         which is enough (more or less) for 9600 Baud ( real speed 960 Bytes/s ).
     */
-
-    if(!(CBUF_IsEmpty(rx_Q)) && (EEAR == 7)){
+        
+    if(!(CBUF_IsEmpty(rx_Q)) && (count == 7)){
         uint8_t tmp = CBUF_Get(rx_Q, 0);
-        if(tmp > EEAR) {
-            interruptBuffer[EEAR] = tmp;
+        if(tmp > count) {
+            interruptBuffer[count] = tmp;
             CBUF_AdvancePopIdx(rx_Q);        
         }
     }
@@ -582,15 +581,15 @@ void HID_EP_1_IN(){
 /* Device to host. Endpoint 2 Input */
 void HID_EP_3_IN(){
 
-    monitorBuffer[0] = prog_state;
-    monitorBuffer[1] = 0;
-    monitorBuffer[2] = 0;
-    monitorBuffer[3] = 0;
-    monitorBuffer[4] = 0;
-    monitorBuffer[5] = 0;
-    monitorBuffer[6] = 0;
-    monitorBuffer[7] = 0;
-
+    // monitorBuffer[0] = 0;
+    // monitorBuffer[1] = 0;
+    // monitorBuffer[2] = 0;
+    // monitorBuffer[3] = 0;
+    // monitorBuffer[4] = 0;
+    // monitorBuffer[5] = 0;
+    // monitorBuffer[6] = 0;
+    monitorBuffer[7] = prog_state | uart_state;
+ 
     usbSetInterrupt3(monitorBuffer, sizeof(monitorBuffer));
 }
 
@@ -601,7 +600,7 @@ int main(void) {
 
     /* init timer */
     clockInit();
-
+    
     /* output SE0 for USB reset */
     DDRB = ~0;
     clockWait(10 / 0.320);              /* 10ms */
@@ -616,8 +615,7 @@ int main(void) {
 
     sei();
     for (;;) {
-
-
+  
         /*  Enable transmit interrupt if tx buffer has data
             and the transmit interrupt is disabled. */
         if(!(USBASPUART_UCSRB & (1<<USBASPUART_UDRIE)) 
@@ -632,7 +630,7 @@ int main(void) {
                 usbEnableAllRequests();
             }
         }
-
+    
         usbPoll();
 
         if (usbInterruptIsReady()) {

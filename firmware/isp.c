@@ -110,13 +110,10 @@ void ispConnect() {
     /* enable pullup on MISO for improved noise immunity */
     ISP_OUT |= (1 << ISP_MISO);
 
-    /* enable the ISP Buffer IC */
-    ISPBufferOn();
- 
     /* positive pulse on RST for at least 2 target clock cycles */
-    ISP_OUT |= (1 << ISP_RST);
-    clockWait(1);                       /* 320us */
-    ISP_OUT &= ~(1 << ISP_RST);
+    // ISP_OUT |= (1 << ISP_RST);
+    // clockWait(1);                       /* 320us */
+    // ISP_OUT &= ~(1 << ISP_RST);
 
     /* Initial extended address value */
     isp_hiaddr = 0xff;  /* ensure that even 0x00000 causes a write of the extended address byte */
@@ -181,6 +178,9 @@ uchar ispTransmit_hw(uchar send_byte) {
 uchar ispEnterProgrammingMode() {
     uchar check;
 
+    /* enable the ISP Buffer IC */
+    ISPBufferOn();
+    
     if (prog_sck == USBASP_ISP_SCK_AUTO)
         prog_sck = USBASP_ISP_SCK_1500;
 
@@ -191,6 +191,8 @@ uchar ispEnterProgrammingMode() {
 
         uchar tries = 3;
         do {
+            /* AVR probe */
+            
             /* pulse RST */
             ISP_OUT |= (1 << ISP_RST);      /* RST high */
             clockWait(1);                   /* 320us */
@@ -205,15 +207,28 @@ uchar ispEnterProgrammingMode() {
             spiTx(0);
 
             if (check == 0x53) {
-#               if TURBO_MODE
                 /* bump up speed now that programming mode is enabled */
                 /* http://nerdralph.blogspot.com/2020/09/recording-reset-pin.html */
                 spiHWdisable();
                 ispSetSCKOption(prog_sck + 1);
                 if (ispTransmit == ispTransmit_hw) spiHWenable();
-#               endif
                 return 0;
             }
+            
+            
+            /* AT89* Probe */
+            
+            ISP_OUT |= (1 << ISP_RST);      /* RST high */
+            clockWait(5);                   /* 1.6 ms */
+            
+            spiTx(0xAC);
+            spiTx(0x53);
+            spiTx(0);
+            check = spiTx(0);
+
+            if (check == 0x69) 
+                return 0;
+            
         } while (--tries);
 
         spiHWdisable();
@@ -221,6 +236,9 @@ uchar ispEnterProgrammingMode() {
         ispSetSCKOption(--prog_sck);    /* try lower speed */
     }
 
+    /* disable the ISP buffer IC */
+    ISPBufferOff();
+    
     return 1; /* error: device dosn't answer */
 }
 

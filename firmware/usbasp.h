@@ -1,11 +1,13 @@
 /*
  * usbasp.c - part of USBasp
  *
+ * 2023 Add USBASP_CAP_SNHIDUPDATE by Dimitrios Chr. Ioannidis ( d.ioannidis@nephelae.eu )
+ *
  * Autor..........: Thomas Fischl <tfischl@gmx.de>
  * Description....: Definitions and macros for usbasp
  * Licence........: GNU GPL v2 (see Readme.txt)
  * Creation Date..: 2009-02-28
- * Last change....: 2009-02-28
+ * Last change....: 2023-03-22
  */
 
 #ifndef USBASP_H_
@@ -39,6 +41,7 @@
 #define USBASP_CAP_0_TPI                0x01
 #define USBASP_CAP_6_UART               0x40
 #define USBASP_CAP_HIDUART              0x80
+#define USBASP_CAP_SNHIDUPDATE          0x20
 
 #define USBASP_CAP_12MHZ_CLOCK          0x00
 #define USBASP_CAP_16MHZ_CLOCK          0x01
@@ -54,6 +57,10 @@
 #define PROG_STATE_TPI_READ             5
 #define PROG_STATE_TPI_WRITE            6
 #define PROG_STATE_SET_REPORT           7
+
+/* uart state */
+#define UART_STATE_ENABLED              16
+#define UART_STATE_DISABLED             0
 
 /* Block mode flags */
 #define PROG_BLOCKFLAG_FIRST            1
