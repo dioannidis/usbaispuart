@@ -17,7 +17,7 @@ CLOCK=12000000
 # ISP=ponyser  PORT=/dev/ttyS1
 # ISP=stk500   PORT=/dev/ttyS1
 # ISP=stk500v2 PORT=/dev/ttyUSB0
-ISP=xplainedmini
+ISP=snap_isp
 PORT=usb
 
 help:
